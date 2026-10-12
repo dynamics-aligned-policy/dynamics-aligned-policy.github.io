@@ -157,3 +157,13 @@ body {
 #interpolation-image-wrapper img {
   border-radius: 5px;
 }
+
+.results-table th,
+.results-table td {
+    text-align: center !important;
+    white-space: nowrap;
+}
+
+.results-table tr.is-dap {
+    background-color: #fff8d6;
+}

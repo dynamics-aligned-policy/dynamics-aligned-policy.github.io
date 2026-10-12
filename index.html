@@ -18,6 +18,10 @@
   <link rel="stylesheet" href="./static/css/index.css">
   <link rel="icon" href="./static/images/favicon.svg">
 
+  <script>
+    window.MathJax = { tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]] } };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script>
   <script defer src="./static/js/fontawesome.all.min.js"></script>
 </head>
 <body>
@@ -132,29 +136,160 @@
       </div>
     </div>
 
-    <!-- Method. -->
-    <div class="columns is-centered has-text-centered">
+  </div>
+</section>
+
+<section class="section" id="method">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Method</h2>
+        <h2 class="title is-3 has-text-centered">Method</h2>
+
+        <h3 class="title is-4">Why is coupling dynamics and policy hard?</h3>
+        <div class="content has-text-centered">
+          <img src="./static/images/fig1_overview.png" alt="Overview of DAP" style="max-width: 100%; height: auto;">
+        </div>
         <div class="content has-text-justified">
-          <p>TBD</p>
+          <p>
+            An action-conditioned dynamics model $(o_t, a_t) \rightarrow o_{t+1}$ tells us what a specific action would
+            cause, unlike action-agnostic video prediction $p(o_{t+1} \mid o_t)$. Placing it inside a generative policy,
+            however, creates a <em>circular dependency</em>: the dynamics model needs actions to predict the future,
+            while the policy needs that future to choose actions. Prior works break the loop by using dynamics only
+            post hoc, after a full action is sampled, or by predicting the future before any action exists.
+            Both refine only once with a fixed future surrogate. DAP instead lets the two models refine each other
+            at every flow step.
+          </p>
+        </div>
+
+        <h3 class="title is-4">Dynamics-Aligned Flow Matching Policy</h3>
+        <div class="content has-text-centered">
+          <img src="./static/images/fig2_pipeline.png" alt="Training and inference pipeline of DAP" style="max-width: 100%; height: auto;">
+        </div>
+        <div class="content has-text-justified">
+          <p>
+            <b>Training.</b> DAP trains two conditional flow matching models separately on expert demonstrations:
+            an action-conditioned dynamics model $f_\theta(o_t, a_t)$ that predicts future observations in SD-VAE
+            latent space, and a future-conditioned policy $\pi_\phi(o_t, o_{t+1})$ that generates action chunks.
+          </p>
+          <p>
+            <b>Inference.</b> Both an action flow $a^{(\tau)}$ and a future-observation flow $o^{(\tau)}$ start from
+            Gaussian noise and evolve in parallel. At each flow step, each sample is extrapolated to its endpoint
+            estimate, $\hat{x} = x^{(\tau)} + (1-\tau)\,\hat{u}^{(\tau)}$, and that estimate conditions the other model:
+          </p>
+          <p style="text-align: center;">
+            $\hat{u}_a^{(\tau)} = \pi_\phi(a^{(\tau)}, \tau \mid o_t, \hat{o}), \qquad
+            \hat{u}_o^{(\tau)} = f_\theta(o^{(\tau)}, \tau \mid o_t, \hat{a}).$
+          </p>
+          <p>
+            Intermediate action intentions update the predicted future, and the updated future refines the action
+            flow. The samples converge to a self-consistent action&ndash;future pair on which the policy and dynamics
+            model agree. Under a contraction-style assumption that holds empirically on all simulation tasks, the
+            action&ndash;future mismatch shrinks at rate $O(1/K)$ in the number of flow steps $K$, whereas fixed
+            conditioning keeps a non-vanishing residual.
+          </p>
         </div>
       </div>
     </div>
+  </div>
+</section>
 
-    <!-- Results. -->
-    <div class="columns is-centered has-text-centered">
+<section class="section" id="experiments">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3">Results</h2>
+        <h2 class="title is-3 has-text-centered">Experiments</h2>
 
-        <h3 class="title is-4">Simulation</h3>
+        <div class="content has-text-centered">
+          <img src="./static/images/fig3_tasks.png" alt="Simulation and real-world tasks" style="max-width: 100%; height: auto;">
+        </div>
         <div class="content has-text-justified">
-          <p>TBD</p>
+          <p>
+            We evaluate DAP on four ManiSkill3 tasks (100 demonstrations each, 100 trials) and three real-world
+            tasks on a UR5 robot (10 trials each), against DP, LPB, UVA, and fine-tuned &pi;<sub>0</sub>.
+          </p>
         </div>
 
-        <h3 class="title is-4">Real Robot</h3>
+        <h3 class="title is-4">Simulation</h3>
+        <div class="table-container">
+          <table class="table is-narrow is-hoverable is-fullwidth results-table">
+            <thead>
+              <tr><th>Method</th><th>PickCube</th><th>PushCube</th><th>DrawTriangle</th><th>StackCube</th><th>Average</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>DP</td><td>52.0 &plusmn; 12.3</td><td>82.3 &plusmn; 9.3</td><td>6.0 &plusmn; 5.6</td><td>0.0 &plusmn; 0.0</td><td>35.1 &plusmn; 2.7</td></tr>
+              <tr><td>LPB</td><td>46.0 &plusmn; 0.0</td><td><b>100.0 &plusmn; 0.0</b></td><td>18.7 &plusmn; 3.1</td><td>8.3 &plusmn; 1.2</td><td>43.3 &plusmn; 0.5</td></tr>
+              <tr><td>UVA</td><td>4.3 &plusmn; 0.6</td><td>75.3 &plusmn; 0.6</td><td>44.0 &plusmn; 0.0</td><td>0.7 &plusmn; 0.6</td><td>31.1 &plusmn; 0.1</td></tr>
+              <tr><td>&pi;<sub>0</sub></td><td>34.0 &plusmn; 1.0</td><td>98.3 &plusmn; 0.6</td><td>2.0 &plusmn; 1.0</td><td><b>41.3 &plusmn; 3.1</b></td><td>43.9 &plusmn; 0.9</td></tr>
+              <tr class="is-dap"><td><b>DAP</b></td><td><b>88.7 &plusmn; 0.6</b></td><td>98.3 &plusmn; 0.6</td><td><b>55.7 &plusmn; 2.3</b></td><td>32.3 &plusmn; 4.0</td><td><b>68.8 &plusmn; 1.6</b></td></tr>
+              <tr><td>DAP (w/o Dyn.)</td><td>73.7 &plusmn; 1.5</td><td>&ndash;</td><td>22.3 &plusmn; 1.2</td><td>15.0 &plusmn; 1.0</td><td>&ndash;</td></tr>
+            </tbody>
+          </table>
+        </div>
         <div class="content has-text-justified">
-          <p>TBD</p>
+          <p>
+            Success rates (%) on ManiSkill3, mean over the last three checkpoints &plusmn; standard deviation.
+            DAP improves the average success rate from 43.9% (&pi;<sub>0</sub>) to 68.8%, a 56.5% relative gain.
+            Removing the dynamics model (w/o Dyn.) lowers success on every non-saturated task, so the gain comes from
+            conditioning on the predicted future, not from the flow matching policy alone.
+          </p>
+        </div>
+
+        <h3 class="title is-4">Real World</h3>
+        <div class="table-container">
+          <table class="table is-narrow is-hoverable is-fullwidth results-table">
+            <thead>
+              <tr><th>Method</th><th>Pick and Place</th><th>Towel Folding</th><th>Rim-Grasp Cup Placement</th><th>Average</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>DP</td><td>80</td><td>70</td><td>0</td><td>50.0</td></tr>
+              <tr><td>UVA</td><td>0</td><td>30</td><td>0</td><td>10.0</td></tr>
+              <tr><td>&pi;<sub>0</sub></td><td>0</td><td>20</td><td>0</td><td>6.7</td></tr>
+              <tr class="is-dap"><td><b>DAP</b></td><td><b>90</b></td><td><b>80</b></td><td><b>30</b></td><td><b>66.7</b></td></tr>
+              <tr><td>DAP (w/o Dyn.)</td><td>40</td><td>40</td><td>10</td><td>30.0</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="content has-text-justified">
+          <p>
+            Success rates (%) over 10 trials per task, with 59&ndash;99 teleoperated demonstrations.
+            DAP reaches 66.7% on average versus 50.0% for DP. On Rim-Grasp Cup Placement, where early contact choices
+            are critical, DAP succeeds 3/10 times while all baselines fail.
+          </p>
+        </div>
+
+        <h3 class="title is-4">Robustness and Data Efficiency</h3>
+        <div class="content has-text-centered">
+          <img src="./static/images/fig4_analysis.png" alt="Robustness, prediction quality, and data efficiency on PickCube" style="max-width: 100%; height: auto;">
+        </div>
+        <div class="content has-text-justified">
+          <p>
+            <b>(a, b) Corrupted future predictions.</b> We inject Gaussian noise into the future-observation estimate
+            at inference time. DAP keeps an 88&ndash;93% success rate and a final prediction PSNR of about 26&nbsp;dB at
+            every noise level, while post-hoc and video-conditioned baselines, which keep a fixed future surrogate,
+            collapse in PSNR and lose success at high noise.
+          </p>
+          <p>
+            <b>(c, d) Scaling with demonstrations.</b> With 100&ndash;200 demonstrations, the action-conditioned
+            dynamics model predicts the future more accurately than an action-agnostic video model, and DAP saturates
+            task success by 200 demonstrations while baselines improve more gradually.
+          </p>
+        </div>
+
+        <h3 class="title is-4">Alignment during Sampling</h3>
+        <div class="columns is-vcentered">
+          <div class="column is-half has-text-centered">
+            <img src="./static/images/fig5_alignment.png" alt="Alignment error over flow time" style="max-width: 100%; height: auto;">
+          </div>
+          <div class="column is-half">
+            <div class="content has-text-justified">
+              <p>
+                The alignment error $\|\hat{o} - F^{(\tau)}(\hat{o})\|$ measures how far the current future estimate
+                is from the future the dynamics model predicts for the policy's action given that estimate.
+                Within the first two flow steps it drops to a common level on all four tasks regardless of its
+                initial value, and decreases to about 0.02 by the last step.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
